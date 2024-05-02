@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 class Schedule {
   TimeOfDay time;
@@ -79,6 +80,38 @@ class _MedicationScheduleScreenState extends State<MedicationScheduleScreen> {
     return true;
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _startMedicationTimeCheck();
+  }
+
+  void _startMedicationTimeCheck() {
+    const Duration checkInterval = Duration(seconds: 1);
+    Timer.periodic(checkInterval, (_) => _checkMedicationTime());
+  }
+
+Future<void> _checkMedicationTime() async {
+  final now = TimeOfDay.now();
+
+  TimeOfDay nowTime = TimeOfDay(hour: now.hour, minute: now.minute);
+
+  print('Horário atual: ${now.hour}:${now.minute}');
+
+  for (final schedule in schedules) {
+
+    print('Horário do medicamento: ${schedule.time.hour}:${schedule.time.minute}');
+
+    if (nowTime.hour == schedule.time.hour && nowTime.minute == schedule.time.minute) {
+      print('Comparação bem-sucedida! Hora de tomar o medicamento.');
+      return; 
+    } else {
+      print('Comparação falhou.');
+    }
+  }
+  print('Nenhum horário de medicamento correspondente encontrado.');
+}
+
   Widget _buildListTile(BuildContext context, int index) {
     return Card(
       elevation: 2,
@@ -128,7 +161,7 @@ class _MedicationScheduleScreenState extends State<MedicationScheduleScreen> {
         onPressed: () => _selectTime(context),
         icon: Icon(Icons.add),
         label: Text('Adicionar um horário'),
-        backgroundColor: Color.fromARGB(255, 194, 145, 227),
+        backgroundColor: const Color.fromARGB(255, 159, 33, 243),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
