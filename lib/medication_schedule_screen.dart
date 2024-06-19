@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_blue/flutter_blue.dart';
 import 'dart:async';
 
 class Schedule {
@@ -16,6 +17,9 @@ class MedicationScheduleScreen extends StatefulWidget {
 class _MedicationScheduleScreenState extends State<MedicationScheduleScreen> {
   List<Schedule> schedules = [];
   List<String> weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  FlutterBlue flutterBlue = FlutterBlue.instance;
+  BluetoothDevice? _connectedDevice;
+  BluetoothCharacteristic? _characteristic;
 
   Future<void> _selectTime(BuildContext context, {TimeOfDay? initialTime, int? scheduleIndex}) async {
     final TimeOfDay? pickedTime = await showTimePicker(
@@ -84,6 +88,7 @@ class _MedicationScheduleScreenState extends State<MedicationScheduleScreen> {
   void initState() {
     super.initState();
     _startMedicationTimeCheck();
+    _scanForDevices();
   }
 
   void _startMedicationTimeCheck() {
@@ -91,19 +96,101 @@ class _MedicationScheduleScreenState extends State<MedicationScheduleScreen> {
     Timer.periodic(checkInterval, (_) => _checkMedicationTime());
   }
 
+  Future<void> _scanForDevices() async {
+    flutterBlue.startScan(timeout: Duration(seconds: 4));
+
+    flutterBlue.scanResults.listen((results) {
+      setState(() {
+        _devicesList = results.map((r) => r.device).toList();
+      });
+    });
+  }
+
+  Future<void> _connectToDevice(BluetoothDevice device) async {
+    await device.connect();
+    List<BluetoothService> services = await device.discoverServices();
+    services.forEach((service) {
+      service.characteristics.forEach((characteristic) {
+        if (characteristic.properties.write) {
+          _characteristic = characteristic;
+        }
+      });
+    });
+    setState(() {
+      _connectedDevice = device;
+    });
+  }
+  void _showDevicesDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Dispositivos Bluetooth Encontrados'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: _devicesList.map((device) {
+                return ListTile(
+                  title: Text(device.name.isEmpty ? "Dispositivo Desconhecido" : device.name),
+                  subtitle: Text(device.id.toString()),
+                  onTap: () {
+                    flutterBlue.stopScan();
+                    _connectToDevice(device);
+                    Navigator.of(context).pop();
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Horários de Medicamentos'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.bluetooth),
+            onPressed: _showDevicesDialog,
+          ),
+        ],
+      ),
+      body: schedules.isEmpty
+          ? Center(child: Text('Pressione o botão "Adicionar um horário" para adicionar um horário.'))
+          : ListView.builder(
+              itemCount: schedules.length,
+              itemBuilder: (context, index) => _buildListTile(context, index),
+            ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _selectTime(context),
+        icon: Icon(Icons.add),
+        label: Text('Adicionar um horário'),
+        backgroundColor: const Color.fromARGB(255, 159, 33, 243),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Future<void> _sendDataToArduino(String data) async {
+    if (_characteristic != null) {
+      await _characteristic!.write(data.codeUnits);
+    }
+  }
+
 Future<void> _checkMedicationTime() async {
   final now = TimeOfDay.now();
-
   TimeOfDay nowTime = TimeOfDay(hour: now.hour, minute: now.minute);
 
   print('Horário atual: ${now.hour}:${now.minute}');
-
   for (final schedule in schedules) {
-
     print('Horário do medicamento: ${schedule.time.hour}:${schedule.time.minute}');
 
     if (nowTime.hour == schedule.time.hour && nowTime.minute == schedule.time.minute) {
       print('Comparação bem-sucedida! Hora de tomar o medicamento.');
+      await _sendDataToArduino("med_time");
       return; 
     } else {
       print('Comparação falhou.');
