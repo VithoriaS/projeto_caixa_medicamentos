@@ -31,6 +31,8 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_blue: ^0.8.0
+  flutter_bluetooth_serial: ^0.4.0
+  permission_handler: ^10.2.0
 
 
 
