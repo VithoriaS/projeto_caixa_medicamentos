@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'medication_schedule_screen.dart'; // Certifique-se de importar a página correta
 
 void main() {
   runApp(MyApp());
@@ -79,9 +80,16 @@ class _BluetoothAppState extends State<BluetoothApp> {
           _isConnected = true;
         });
         print('Connected to the device');
-
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MedicationScheduleScreen(connection: _connection),
+          ),
+        );
+        print('teste');
         _connection!.input!.listen((Uint8List data) {
           print('Data incoming: ${ascii.decode(data)}');
+
         }).onDone(() {
           print('Disconnected by remote request');
           setState(() {
@@ -96,6 +104,13 @@ class _BluetoothAppState extends State<BluetoothApp> {
     }
   }
 
+  void _sendData(String data) async {
+    if (_isConnected && _connection != null) {
+      _connection!.output.add(ascii.encode(data));
+      await _connection!.output.allSent;
+    }
+  }
+
   void _disconnectFromDevice() async {
     await _connection?.close();
     setState(() {
@@ -107,7 +122,7 @@ class _BluetoothAppState extends State<BluetoothApp> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Flutter Bluetooth Serial Example'),
+        title: Text('Flutter Bluetooth Serial LED Control'),
       ),
       body: Center(
         child: Column(
@@ -117,14 +132,15 @@ class _BluetoothAppState extends State<BluetoothApp> {
             SizedBox(height: 20),
             _isConnected
                 ? ElevatedButton(
-                    onPressed: _disconnectFromDevice,
-                    child: Text('Disconnect'),
-                  )
+              onPressed: _disconnectFromDevice,
+              child: Text('Disconnect'),
+            )
                 : ElevatedButton(
-                    onPressed: () => _connectToDevice(
-                        '00:23:04:00:01:56'), // Substitua pelo endereço do seu dispositivo
-                    child: Text('Connect'),
-                  ),
+              onPressed: () => _connectToDevice('00:23:04:00:01:56'), // Substitua pelo endereÃ§o do seu dispositivo
+              child: Text('Connect'),
+            ),
+            SizedBox(height: 20),
+
           ],
         ),
       ),

@@ -1,9 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_blue/flutter_blue.dart';
 import 'dart:async';
+import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 
 class Schedule {
-
   TimeOfDay time;
   List<bool> daysOfWeek;
 
@@ -11,6 +12,10 @@ class Schedule {
 }
 
 class MedicationScheduleScreen extends StatefulWidget {
+  final BluetoothConnection? connection;
+
+  MedicationScheduleScreen({Key? key, this.connection}) : super(key: key);
+
   @override
   _MedicationScheduleScreenState createState() =>
       _MedicationScheduleScreenState();
@@ -19,9 +24,6 @@ class MedicationScheduleScreen extends StatefulWidget {
 class _MedicationScheduleScreenState extends State<MedicationScheduleScreen> {
   List<Schedule> schedules = [];
   List<String> weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  FlutterBlue flutterBlue = FlutterBlue.instance;
-
-  BluetoothCharacteristic? _characteristic;
 
   Future<void> _selectTime(BuildContext context,
       {TimeOfDay? initialTime, int? scheduleIndex}) async {
@@ -75,9 +77,8 @@ class _MedicationScheduleScreenState extends State<MedicationScheduleScreen> {
           if (scheduleIndex == null) {
             schedules.add(Schedule(time: pickedTime, daysOfWeek: pickedDays));
           } else {
-            schedules[scheduleIndex].time = pickedTime; // Atualizar o horário
-            schedules[scheduleIndex].daysOfWeek =
-                pickedDays; // Atualizar os dias da semana
+            schedules[scheduleIndex].time = pickedTime;
+            schedules[scheduleIndex].daysOfWeek = pickedDays;
           }
         });
       }
@@ -94,9 +95,9 @@ class _MedicationScheduleScreenState extends State<MedicationScheduleScreen> {
   }
 
   @override
-  void _startMedicationTimeCheck() {
-    const Duration checkInterval = Duration(seconds: 1);
-    Timer.periodic(checkInterval, (_) => _checkMedicationTime());
+  void initState() {
+    super.initState();
+    _startMedicationTimeCheck();
   }
 
   @override
@@ -123,10 +124,17 @@ class _MedicationScheduleScreenState extends State<MedicationScheduleScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
-
-  Future<void> _sendDataToArduino(String data) async {
-    if (_characteristic != null) {
-      await _characteristic!.write(data.codeUnits);
+  void _startMedicationTimeCheck() {
+    const Duration checkInterval = Duration(seconds: 3);
+    Timer.periodic(checkInterval, (_) => _checkMedicationTime());
+  }
+  Future<void> _sendData(String data) async {
+    if (widget.connection != null && widget.connection!.isConnected) {
+      widget.connection!.output.add(ascii.encode(data));
+      await widget.connection!.output.allSent;
+      print('Dados enviados: $data');
+    } else {
+      print('Conexão Bluetooth não estabelecida.');
     }
   }
 
@@ -142,7 +150,8 @@ class _MedicationScheduleScreenState extends State<MedicationScheduleScreen> {
       if (nowTime.hour == schedule.time.hour &&
           nowTime.minute == schedule.time.minute) {
         print('Comparação bem-sucedida! Hora de tomar o medicamento.');
-        await _sendDataToArduino("med_time");
+        await _sendData("1");
+
         return;
       } else {
         print('Comparação falhou.');
@@ -190,6 +199,4 @@ class _MedicationScheduleScreenState extends State<MedicationScheduleScreen> {
       schedules.removeAt(index);
     });
   }
-
-
 }
